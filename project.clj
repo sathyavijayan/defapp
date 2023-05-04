@@ -1,14 +1,14 @@
-(defproject sats/upit "0.0.1-SNAPSHOT"
+(defproject sats/defapp "0.0.1-SNAPSHOT"
   :description "Very very simple and basic library to init your app stack."
-  :url "https://github.com/sathyavijayan/upit"
+  :url "https://github.com/sathyavijayan/defapp"
   :license {:name "Apache License 2.0"
             :url "http://www.apache.org/licenses/LICENSE-2.0"}
 
   :scm {:name "git"
-        :url "https://github.com/sathyavijayan/upit.git"}
+        :url "https://github.com/sathyavijayan/defapp.git"}
 
   :deploy-repositories
-  [["releases" {:url "https://maven.pkg.github.com/sathyavijayan/upit"
+  [["releases" {:url "https://maven.pkg.github.com/sathyavijayan/defapp"
                 :username :env/GH_PACKAGES_USR
                 :password :env/GH_PACKAGES_PSW
                 :sign-releases false}]]

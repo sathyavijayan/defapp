@@ -1,9 +1,6 @@
-# upit
+# defapp
 
 Very very simple library to initialise your app stack.
-
-`upit` is pronounced 'up-it' (something that helps to start your app
-up). This is also an attempted word-play on a very popular, polarising South Indian dish called ["Upittu" (whoop-it-two)](https://en.wikipedia.org/wiki/Upma).
 
 ## Rationale
 
@@ -19,7 +16,10 @@ state which includes things like:
 - HTTP client connection pools
 - metrics reporters
 
-These 'things' also have dependencies. For eg., configuration must be loaded before database connection pool can be initialised and the database connection pool must be passed as an argument to the ring handler which is required to start the http server.
+These 'things' also have dependencies. For eg., configuration must be
+loaded before database connection pool can be initialised and the
+database connection pool must be passed as an argument to the ring
+handler which is required to start the http server.
 
 There are many clojure libraries that allow managing runtime state
 like:
@@ -35,64 +35,113 @@ around.  However, during development, especially while working with
 the REPL, it is possible to end up with dirty state, for eg., if the
 http server started ok, but the metrics reporter failed, the state so
 far is lost. The REPL has to be restated in-order reclaim the HTTP
-port to which the ghosted http server is now bound.'upit' solves this
+port to which the ghosted http server is now bound.'defapp' solves this
 problem by tracking intermediate states in an atom while keeping the
 application simple.
 
+## Terminology
+
+Application state is called `app` and the app contains a list of `resources`. Application state can be `setup` or `tear(ed)-down`.
+
+
+
+
+
 ## Usage
 
-To use this library add the following github packages repository to your `project.clj`.
+To use this library add the following github packages repository to
+your `project.clj`.
 
 ```
 :repositories
-[["sats" {:url "https://maven.pkg.github.com/sathyavijayan/upit"
+[["sats" {:url "https://maven.pkg.github.com/sathyavijayan/defapp"
           :username :env/GH_PACKAGES_USR
           :password :env/GH_PACKAGES_PSW}]]
 ```
 
 and the following to `:dependencies`.
 ```
-[sats/upit "0.0.1-SNAPSHOT"]
+[sats/defapp "0.0.1-SNAPSHOT"]
 ```
 
-The 'things' that make up the runtime state can be defined as a list
-of maps.
+Define 'resources' and 'app'.
+```clojure
+(defresource config
+  (setup! [state-so-far]
+    ;; load and return config
+    configuration)
+
+  (tear-down! [configuration]
+    nil))
+
+(defresource db-connection-pool
+  (setup! [{:keys [configuration] :as state-so-far}]
+    (db/create-connection-pool (:db configuration)))
+
+  (tear-down! [db-connection-pool]
+    (.close db-connection-pool)))
+
+(defapp my-app
+  config
+  db-connection-pool)
+```
+
+To setup the application state, do:
+```clojure
+(setup! my-app)
+
+;; To wait for all the resources to initialize, do the
+;; following. Note that this is a blocking operation. If
+;; initialization of any resource fails, this will block
+;; never return.
+@(setup! my-app) ;;or
+
+(do
+  (setup! my-app)
+  @my-app)
+
+;; You can also deref using a timeout and timeout
+;; value.
+(deref my-app 5000 :timed-out)
+```
+
+To stop everything do:
 
 ```clojure
-(def app-def
- [{:key  :configuration
-   :setup (fn [state-so-far]
-           ;; load and return config
-           configuration)
-   ;; just return nil to remove from the state
-   :tear-down (fn [configuration] nil)}
-   {:key :db-connection-pool
-    :setup (fn [{:keys [configuration] :as state-so-far}]
-             (db/create-connection-pool (:db configuration)
-    :tear-down (fn [db-connection-pool]
-                 (.close db-connection-pool))}])
+(tear-down! my-app)
 ```
 
-Then simply do:
+To inspect errors during setup/tear-down do:
 
 ```clojure
-(require 'sats.upit)
-;; an atom to hold the runtime state
-(def app {})
-;; `up!` will initialise each runtime 'thing' in the order in which
-;; it is defined. This function can be called multiple times as the
-;; 'things' which are already started, will be skipped.
-(up! app app-def)
+(errors my-app)
 ```
 
-To stop eveything do:
+If `setup!` or `tear-down!` fails midway, the function can be called
+again to retry the operation.
 
-```clojure
-(down! app)
-```
+# Notes about nomenclature
+As mentioned above, defapp calls the application state `app` which is
+made up of a list of `resources`.
 
-If `up!` or `down!` fails midway, the function can be called again to
-retry the operation.
+I chose `app` over 'stack' to avoid confusion with the data structure
+or the notion of a 'software stack'.I also rejected 'system/component'
+to avoid confusion with other Clojure libraries that deal with runtime
+application state.
+
+> `resource` - Something that is available for use or that can be used
+> for support or help.
+
+Resources can be passed to functions that can 'use' them to achieve
+specific tasks. A 'resource' can be anything - a connection pool, a
+static map, reference to a thread, a function, etc., and it will still
+fit the definition.
+
+I chose `setup/tear-down` to denote actions over 'start/stop'
+because it works better for all types of resources. For eg., you can
+start/stop a connection pool, but not a piece of configuration or a
+secret.
+
 
 ## Examples and Recipes
 Coming soon.

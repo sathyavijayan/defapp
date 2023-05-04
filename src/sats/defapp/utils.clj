@@ -1,4 +1,4 @@
-(ns sats.upit.utils)
+(ns sats.defapp.utils)
 
 (defmacro defalias
   "Create a local var with the same value of a var from another namespace"
