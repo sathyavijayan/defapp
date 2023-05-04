@@ -36,14 +36,12 @@
 (defprotocol IApp
   (setup! [this])
   (tear-down! [this])
-  (errors [this]))
-
-(defprotocol IResource
-  (update-resources [this resources]))
+  (errors [this])
+  (update-app [this resources opts]))
 
 ;; deref / @ will be the default way to get app state.
 ;; should we allow block wait ?
-(defrecord App [app-agent resources]
+(defrecord App [app-agent resources opts]
   ;;-- AppState functions
   IApp
   (setup! [this]
@@ -63,71 +61,43 @@
   (errors [this]
     (agent-error app-agent))
 
-  IResource
-  (update-resources [this resources-to-update]
-    (if (not= resources-to-update (:resources this))
-      (let [updated (assoc this :resources resources-to-update)]
-        (println "tearing down")
-        (tear-down! this)
-        (setup! updated)
+  (update-app [this resources-to-update opts-to-update]
+    (when (agent-error app-agent)
+      (restart-agent app-agent @app-agent))
+
+    (if (or (not= resources-to-update (:resources this))
+            (and opts-to-update (not= opts-to-update opts)))
+      (let [updated (cond-> (assoc this :resources resources-to-update)
+                      opts-to-update (assoc :opts opts-to-update))]
+        (when (not-empty @app-agent)
+          (tear-down! this)
+          (setup! updated))
         updated)
       this))
 
   clojure.lang.IDeref
   (deref [this]
-    (await app-agent)
-    @app-agent)
-
-  clojure.lang.IBlockingDeref
-  (deref [this timeout-ms timeout-val]
-    (if (await-for timeout-ms app-agent)
-      @app-agent
-      timeout-val)))
+    (if (await-for (:timeout-ms opts) app-agent)
+      (if-let [err (agent-error app-agent)]
+        (throw err)
+        @app-agent)
+      (throw (ex-info "Timed out waiting for app state change."
+                      {:reason :timed-out
+                       :errros (agent-error app-agent)})))))
 
 (defn new-app
-  ([resources]
-   (->App (agent {}) resources)))
+  ([resources opts]
+   (->App (agent {}) resources
+          (or opts {:timeout-ms (* 2 60 1000)}))))
 
 
 
-
-;; alternative thinking
 (comment
+  "When the user tries to deref the app, it should throw an
+exception if the initialization failed. In an ideal world,"
 
-  ;; stack, items ?
-  ;; app, resources
-
-  ;; `resource` - Something that is available for use or that can be
-  ;; used for support or help.  This is much better naming - an app is
-  ;; composed of resources.  resources can be passed to functions that
-  ;; can 'use' them to achieve specific tasks.  a 'resource' can be
-  ;; anything - a connection pool, a static map, reference to a
-  ;; thread, a function, etc., and it will still fit the definition.
-  ;; `setup`/`tear-down` are better names compared to start/stop
-  ;; because it yields to the notion of a `resource` rather than a
-  ;; component.
-
-  #_(defapp my-app
-      [{:key :xxx
-        :setup (fn [x])
-        :tear-down (fn [y])}])
-
-  #_(defresource my-resource
-      (setup      [{:keys [xx]}])
-      (tear-down  [me]))
-
-  ;; agree with BB that adding a form with dispatch can be a cognitive
-  ;; load. Skip that form for now.
-
-  ;; additional destructuring needs a bit of thought. Clojure style
-  ;; destructuring is super useful at this state. So lets leave that feature out?
-
-  ;; rename project to 'appy' / 'appdef' / 'defapp' ?
-  ;; I think 'defapp' sounds very professional and nice compared to defapp ?
-
-  ;; (defmulti..)
-  ;; (defmethod.)
-
-  ;; should the defs and the agent be in the same defrecord?
+  (defapp myapp
+    :resources [a b c]
+    :opts {})
 
   )

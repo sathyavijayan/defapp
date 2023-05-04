@@ -84,10 +84,16 @@
 
 
 (defmacro defapp
-  [name & resources]
+  [name & {:keys [resources opts]}]
   (let [app-name-sym (symbol name)
         resources' (vec resources)]
     `(let* [dv# (def  ~app-name-sym)]
-       (if (.hasRoot dv#)
-         (def ~app-name-sym (core/update-resources ~app-name-sym ~resources'))
-         (def ~app-name-sym (core/new-app ~resources'))))))
+           (if (.hasRoot dv#)
+             (def ~app-name-sym
+               (core/update-app ~app-name-sym
+                 ~resources'
+                 ~opts))
+             (def ~app-name-sym
+               (core/new-app
+                 ~resources'
+                 ~opts))))))

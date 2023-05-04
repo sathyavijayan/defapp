@@ -36,7 +36,7 @@ the REPL, it is possible to end up with dirty state, for eg., if the
 http server started ok, but the metrics reporter failed, the state so
 far is lost. The REPL has to be restated in-order reclaim the HTTP
 port to which the ghosted http server is now bound.'defapp' solves this
-problem by tracking intermediate states in an atom while keeping the
+problem by tracking intermediate states in an agent while keeping the
 application simple.
 
 ## Terminology
@@ -60,10 +60,6 @@ your `project.clj`.
 ```
 
 and the following to `:dependencies`.
-```
-[sats/defapp "0.0.1-SNAPSHOT"]
-```
-
 Define 'resources' and 'app'.
 ```clojure
 (defresource config
@@ -82,39 +78,36 @@ Define 'resources' and 'app'.
     (.close db-connection-pool)))
 
 (defapp my-app
-  config
-  db-connection-pool)
+  :resources [config db-connection-pool]
+  :opts {:timeout-ms 120000})
 ```
 
 To setup the application state, do:
 ```clojure
 (setup! my-app)
 
-;; To wait for all the resources to initialize, do the
-;; following. Note that this is a blocking operation. If
-;; initialization of any resource fails, this will block
-;; never return.
+;; 'deref' the app to wait for all the resources to initialize and to
+;; obtain the app state. The behaviour is similar to 'dereffing' a
+;; future - 'deref' will throw any exceptions that occurred during
+;; setup (or tear-down). 'deref' waits for `timeout-ms` (default: 2
+;; mins) for the actions (setup/tear-down) to complete after which a
+;; timeout exception is thrown.
+
 @(setup! my-app) ;;or
 
 (do
   (setup! my-app)
   @my-app)
-
-;; You can also deref using a timeout and timeout
-;; value.
-(deref my-app 5000 :timed-out)
-```
-
-To stop everything do:
-
-```clojure
-(tear-down! my-app)
 ```
 
 To inspect errors during setup/tear-down do:
-
 ```clojure
 (errors my-app)
+```
+
+To stop everything do:
+```clojure
+@(tear-down! my-app)
 ```
 
 If `setup!` or `tear-down!` fails midway, the function can be called

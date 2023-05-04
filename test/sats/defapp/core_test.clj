@@ -3,14 +3,16 @@
             [midje.sweet :refer :all]))
 
 (facts "about defapp"
-  (let [app (new-app [{:key  :config
-                       :setup (constantly {:db-url "fake://db:port"})
-                       :tear-down (constantly nil)}
+  (let [app (new-app
+              [{:key  :config
+                :setup (constantly {:db-url "fake://db:port"})
+                :tear-down (constantly nil)}
 
-                      {:key :db-pool
-                       :setup (fn [{:keys [config]}]
-                                {:connection-pool (:db-url config)})
-                       :tear-down (constantly nil)}])]
+               {:key :db-pool
+                :setup (fn [{:keys [config]}]
+                         {:connection-pool (:db-url config)})
+                :tear-down (constantly nil)}]
+              nil)]
 
     (facts "setup!"
       (setup! app)
@@ -49,7 +51,8 @@
                      :tear-down
                      (fn [app-state]
                        (swap! *tracker* conj :baz)
-                       nil)}])]
+                       nil)}]
+                   nil)]
           @(setup! app)
           @(tear-down! app))
         @*tracker* => (contains [:baz :bar :foo])))
